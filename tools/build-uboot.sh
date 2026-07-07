@@ -67,31 +67,36 @@ def pad_to(f, sz):
     pos = f.tell()
     f.write(b"\0" * (align(pos, sz) - pos))
 base = args.base
-ko = 0x00008000
-ro = 0x01000000
-so = 0x00f00000
-to = 0x00000100
 kernel = open(args.kernel, "rb").read()
 ramdisk = open(args.ramdisk, "rb").read() if args.ramdisk else b""
 second = open(args.second, "rb").read() if args.second else b""
 dtb = open(args.dtb, "rb").read() if args.dtb else b""
 cmd = args.cmdline.encode()
 pages = args.pagesize
-# Android boot image header (v0)
-hdr = b"ANDROID!"
-hdr += struct.pack("<I", kernel.__len__())
-hdr += struct.pack("<I", ramdisk.__len__())
-hdr += struct.pack("<I", second.__len__())
-hdr += struct.pack("<I", to)  # tags offset
-hdr += struct.pack("<I", pages)
-hdr += struct.pack("<I", ko)  # kernel offset
-hdr += struct.pack("<I", ro)  # ramdisk offset
-hdr += struct.pack("<I", so)  # second offset
-hdr += struct.pack("<I", args.base)  # base
-hdr += cmd.ljust(512, b"\0")[:512]  # cmdline
-# unused fields
-hdr += b"\0" * 32  # id/scratch
-hdr += b"\0" * (1024 - len(hdr))  # pad to 1024
+# Android boot image v0 header (1632 bytes, padded to page_size)
+hdr = b"ANDROID!"                          # magic (8)
+hdr += struct.pack("<I", len(kernel))       # kernel_size (4)
+hdr += struct.pack("<I", base + 0x00008000) # kernel_addr (4)
+hdr += struct.pack("<I", len(ramdisk))      # ramdisk_size (4)
+hdr += struct.pack("<I", base + 0x01000000) # ramdisk_addr (4)
+hdr += struct.pack("<I", len(second))       # second_size (4)
+hdr += struct.pack("<I", base + 0x00f00000) # second_addr (4)
+hdr += struct.pack("<I", base + 0x00000100) # tags_addr (4)
+hdr += struct.pack("<I", pages)             # page_size (4)
+hdr += struct.pack("<I", 0)                 # header_version (4) = v0
+hdr += struct.pack("<I", 0)                 # os_version (4)
+hdr += b"\0" * 16                           # name (16)
+hdr += cmd.ljust(512, b"\0")[:512]          # cmdline (512)
+# id: SHA1 of header + kernel + ramdisk + second
+sha = hashlib.sha1()
+sha.update(hdr[:1632 - 32 - 1024])  # everything before id
+sha.update(kernel)
+sha.update(ramdisk)
+sha.update(second)
+digest = sha.digest()[:32].ljust(32, b"\0")
+hdr += digest                               # id (32)
+hdr += b"\0" * 1024                         # extra_cmdline (1024)
+# Total: 8+4+4+4+4+4+4+4+4+4+4+16+512+32+1024 = 1632
 with open(args.output, "wb") as f:
     f.write(hdr)
     pad_to(f, pages)
@@ -106,7 +111,7 @@ with open(args.output, "wb") as f:
     if dtb:
         f.write(dtb)
         pad_to(f, pages)
-print(f"Created {args.output}")
+print(f"Created {args.output} ({os.path.getsize(args.output)} bytes)")
 PYEOF
         chmod +x /usr/local/bin/mkbootimg
 

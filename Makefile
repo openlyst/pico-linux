@@ -145,14 +145,16 @@ $(INITRAMFS):
 
 bootimg: $(KERNEL_IMG) $(DTB_FILE) $(INITRAMFS)
 	@echo "==> Creating boot image with kernel + dtb + initramfs..."
+	@echo "==> Appending DTB to kernel Image (mkbootimg doesn't support --dtb)..."
+	cat $(KERNEL_IMG) $(DTB_FILE) > $(OUTPUT_DIR)/Image-dtb
 	mkbootimg \
-		--kernel $(KERNEL_IMG) \
+		--kernel $(OUTPUT_DIR)/Image-dtb \
 		--ramdisk $(INITRAMFS) \
-		--dtb $(DTB_FILE) \
 		--pagesize 4096 \
 		--base 2147483648 \
 		--cmdline "console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xa84000 root=/dev/sda10 rw rootwait fw_devlink=permissive init=/sbin/init" \
 		-o $(BOOT_IMG)
+	rm -f $(OUTPUT_DIR)/Image-dtb
 	@echo "==> Boot image: $(BOOT_IMG)"
 
 # ============================================================

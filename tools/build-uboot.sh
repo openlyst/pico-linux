@@ -45,7 +45,7 @@ docker run --rm \
     bash -c '
         set -e
         apt-get update -qq 2>/dev/null
-        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 swig 2>/dev/null
+        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 swig xxd 2>/dev/null
 
         echo "==> Configuring U-Boot..."
         make CROSS_COMPILE=aarch64-linux-gnu- pico_neo2_defconfig

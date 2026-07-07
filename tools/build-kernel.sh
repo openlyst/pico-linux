@@ -55,8 +55,10 @@ fi
 mkdir -p "${OUTPUT_DIR}"
 
 # Build in Docker
+# On Apple Silicon (arm64 Mac), use native arm64 container — no qemu needed.
+# The native gcc in the container produces arm64 Linux binaries directly.
 echo "==> Building kernel in Docker container..."
-docker run --rm --platform linux/amd64 \
+docker run --rm \
     -v "${KERNEL_DIR}:/kernel:delegated" \
     -v "${PROJECT_DIR}/config:/config:ro" \
     -v "${OUTPUT_DIR}:/output" \
@@ -65,15 +67,15 @@ docker run --rm --platform linux/amd64 \
     bash -c '
         set -e
         apt-get update -qq 2>/dev/null
-        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev crossbuild-essential-arm64 2>/dev/null
+        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev 2>/dev/null
 
         echo "==> Configuring kernel..."
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+        make ARCH=arm64 defconfig
         cat arch/arm64/configs/sdm845.config /config/kernel-fragment.config >> .config
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+        make ARCH=arm64 olddefconfig
 
         echo "==> Building kernel (this takes a while)..."
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image dtbs
+        make ARCH=arm64 -j$(nproc) Image dtbs
 
         echo "==> Copying outputs..."
         cp arch/arm64/boot/Image /output/Image

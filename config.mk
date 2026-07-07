@@ -41,3 +41,6 @@ BOOT_PARTITION := /dev/block/sde11
 
 # Build flags
 MAKEFLAGS    := -j$(shell sysctl -n hw.ncpu 2>/dev/null || echo 8)
+
+# Use gmake (GNU Make 4.0+) on macOS, regular make on Linux
+KMAKE := $(shell command -v gmake 2>/dev/null || command -v make 2>/dev/null)

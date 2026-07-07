@@ -47,8 +47,8 @@ $(UBOOT_DIR):
 uboot: $(UBOOT_DIR)
 	@echo "==> Building U-Boot..."
 	cd $(UBOOT_DIR) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) $(UBOOT_DEFCONFIG) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) $(MAKEFLAGS)
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) $(UBOOT_DEFCONFIG) && \
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) $(MAKEFLAGS)
 	@echo "==> Packaging U-Boot boot.img..."
 	cd $(UBOOT_DIR) && \
 		gzip -kf u-boot-nodtb.bin && \
@@ -73,12 +73,12 @@ $(KERNEL_IMG): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts $(CURDIR)/config
 	echo 'dtb-$$$$(CONFIG_ARCH_QCOM) += $(DTB_NAME).dtb' >> $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/Makefile
 	@echo "==> Configuring kernel..."
 	cd $(KERNEL_DIR) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 defconfig && \
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 defconfig && \
 		scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/sdm845.config $(CURDIR)/config/kernel-fragment.config && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 olddefconfig
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 olddefconfig
 	@echo "==> Building kernel..."
 	cd $(KERNEL_DIR) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(MAKEFLAGS) Image dtbs
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(MAKEFLAGS) Image dtbs
 	@echo "==> Copying outputs..."
 	mkdir -p $(OUTPUT_DIR)
 	cp $(KERNEL_DIR)/arch/arm64/boot/Image $(KERNEL_IMG)
@@ -98,7 +98,7 @@ $(DTB_FILE): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts
 	echo 'dtb-$$$$(CONFIG_ARCH_QCOM) += $(DTB_NAME).dtb' >> $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/Makefile
 	@echo "==> Building device tree..."
 	cd $(KERNEL_DIR) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(DTB_NAME).dtb
+		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(DTB_NAME).dtb
 	mkdir -p $(OUTPUT_DIR)
 	cp $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/$(DTB_NAME).dtb $(OUTPUT_DIR)/
 	@echo "==> DTB: $(DTB_FILE)"

@@ -67,22 +67,8 @@ $(KERNEL_DIR):
 kernel: $(KERNEL_DIR) $(KERNEL_IMG)
 
 $(KERNEL_IMG): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts $(CURDIR)/config/kernel-fragment.config
-	@echo "==> Copying DTS into kernel tree..."
-	cp $(CURDIR)/dts/sdm845-pico-neo2.dts $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/
-	@echo "==> Adding DTS to kernel build..."
-	echo 'dtb-$$$$(CONFIG_ARCH_QCOM) += $(DTB_NAME).dtb' >> $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/Makefile
-	@echo "==> Configuring kernel..."
-	cd $(KERNEL_DIR) && \
-		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 defconfig && \
-		cat arch/arm64/configs/sdm845.config $(CURDIR)/config/kernel-fragment.config >> .config && \
-		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 olddefconfig
-	@echo "==> Building kernel..."
-	cd $(KERNEL_DIR) && \
-		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(MAKEFLAGS) Image dtbs
-	@echo "==> Copying outputs..."
-	mkdir -p $(OUTPUT_DIR)
-	cp $(KERNEL_DIR)/arch/arm64/boot/Image $(KERNEL_IMG)
-	cp $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/$(DTB_NAME).dtb $(OUTPUT_DIR)/
+	@echo "==> Building kernel via Docker..."
+	$(CURDIR)/tools/build-kernel.sh
 	@echo "==> Kernel: $(KERNEL_IMG)"
 
 # ============================================================
@@ -92,15 +78,8 @@ $(KERNEL_IMG): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts $(CURDIR)/config
 dtb: $(DTB_FILE)
 
 $(DTB_FILE): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts
-	@echo "==> Copying DTS into kernel tree..."
-	cp $(CURDIR)/dts/sdm845-pico-neo2.dts $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/
-	@echo "==> Adding DTS to kernel build..."
-	echo 'dtb-$$$$(CONFIG_ARCH_QCOM) += $(DTB_NAME).dtb' >> $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/Makefile
-	@echo "==> Building device tree..."
-	cd $(KERNEL_DIR) && \
-		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(DTB_NAME).dtb
-	mkdir -p $(OUTPUT_DIR)
-	cp $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/$(DTB_NAME).dtb $(OUTPUT_DIR)/
+	@echo "==> Building DTB via Docker..."
+	$(CURDIR)/tools/build-kernel.sh
 	@echo "==> DTB: $(DTB_FILE)"
 
 # ============================================================

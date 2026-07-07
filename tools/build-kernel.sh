@@ -56,7 +56,7 @@ mkdir -p "${OUTPUT_DIR}"
 
 # Build in Docker
 echo "==> Building kernel in Docker container..."
-docker run --rm --platform linux/arm64 \
+docker run --rm --platform linux/amd64 \
     -v "${KERNEL_DIR}:/kernel:delegated" \
     -v "${PROJECT_DIR}/config:/config:ro" \
     -v "${OUTPUT_DIR}:/output" \

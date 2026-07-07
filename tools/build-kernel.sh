@@ -56,16 +56,16 @@ mkdir -p "${OUTPUT_DIR}"
 
 # Build in Docker
 echo "==> Building kernel in Docker container..."
-docker run --rm \
+docker run --rm --platform linux/arm64 \
     -v "${KERNEL_DIR}:/kernel:delegated" \
     -v "${PROJECT_DIR}/config:/config:ro" \
     -v "${OUTPUT_DIR}:/output" \
     -w /kernel \
-    ubuntu:22.04 \
+    debian:bookworm \
     bash -c '
         set -e
-        apt-get update -qq
-        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev libc6-dev crossbuild-essential-arm64 elfutils 2>/dev/null
+        apt-get update -qq 2>/dev/null
+        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev crossbuild-essential-arm64 2>/dev/null
 
         echo "==> Configuring kernel..."
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig

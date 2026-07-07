@@ -66,10 +66,14 @@ $(KERNEL_DIR):
 
 kernel: $(KERNEL_DIR) $(KERNEL_IMG)
 
-$(KERNEL_IMG): $(KERNEL_DIR)
+$(KERNEL_IMG): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts $(CURDIR)/config/kernel-fragment.config
+	@echo "==> Copying DTS into kernel tree..."
+	cp $(CURDIR)/dts/sdm845-pico-neo2.dts $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/
 	@echo "==> Configuring kernel..."
 	cd $(KERNEL_DIR) && \
-		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(KERNEL_DEFCONFIG)
+		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(KERNEL_DEFCONFIG) && \
+		scripts/kconfig/merge_config.sh -m .config $(CURDIR)/config/kernel-fragment.config && \
+		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 olddefconfig
 	@echo "==> Building kernel..."
 	cd $(KERNEL_DIR) && \
 		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(MAKEFLAGS) Image dtbs
@@ -85,7 +89,9 @@ $(KERNEL_IMG): $(KERNEL_DIR)
 
 dtb: $(DTB_FILE)
 
-$(DTB_FILE): $(KERNEL_DIR)
+$(DTB_FILE): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts
+	@echo "==> Copying DTS into kernel tree..."
+	cp $(CURDIR)/dts/sdm845-pico-neo2.dts $(KERNEL_DIR)/arch/arm64/boot/dts/qcom/
 	@echo "==> Building device tree..."
 	cd $(KERNEL_DIR) && \
 		$(MAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 $(DTB_NAME).dtb

@@ -67,7 +67,7 @@ docker run --rm \
     bash -c '
         set -e
         apt-get update -qq 2>/dev/null
-        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev 2>/dev/null
+        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 2>/dev/null
 
         echo "==> Configuring kernel..."
         make ARCH=arm64 defconfig

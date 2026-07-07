@@ -50,7 +50,7 @@ docker run --rm \
         # Create a simple mkbootimg wrapper
         cat > /usr/local/bin/mkbootimg << 'PYEOF'
 #!/usr/bin/env python3
-import struct, sys, os, argparse
+import struct, sys, os, argparse, hashlib
 p = argparse.ArgumentParser()
 p.add_argument("--kernel", required=True)
 p.add_argument("--ramdisk", default=None)
@@ -63,35 +63,49 @@ p.add_argument("--dtb", default=None)
 p.add_argument("--id", action="store_true")
 args = p.parse_args()
 def align(val, a): return (val + a - 1) & ~(a - 1)
-def pad(f, sz):
+def pad_to(f, sz):
     pos = f.tell()
     f.write(b"\0" * (align(pos, sz) - pos))
 base = args.base
-ko = base + 0x00008000
-ro = base + 0x01000000
-so = base + 0x00f00000
-to = base + 0x00000100
-hdr = struct.pack("<10I", args.base, args.pagesize, ko - base, ro - base, so - base, to - base, args.pagesize, args.pagesize, args.pagesize, args.pagesize)
+ko = 0x00008000
+ro = 0x01000000
+so = 0x00f00000
+to = 0x00000100
 kernel = open(args.kernel, "rb").read()
 ramdisk = open(args.ramdisk, "rb").read() if args.ramdisk else b""
 second = open(args.second, "rb").read() if args.second else b""
 dtb = open(args.dtb, "rb").read() if args.dtb else b""
 cmd = args.cmdline.encode()
+pages = args.pagesize
+# Android boot image header (v0)
+hdr = b"ANDROID!"
+hdr += struct.pack("<I", kernel.__len__())
+hdr += struct.pack("<I", ramdisk.__len__())
+hdr += struct.pack("<I", second.__len__())
+hdr += struct.pack("<I", to)  # tags offset
+hdr += struct.pack("<I", pages)
+hdr += struct.pack("<I", ko)  # kernel offset
+hdr += struct.pack("<I", ro)  # ramdisk offset
+hdr += struct.pack("<I", so)  # second offset
+hdr += struct.pack("<I", args.base)  # base
+hdr += cmd.ljust(512, b"\0")[:512]  # cmdline
+# unused fields
+hdr += b"\0" * 32  # id/scratch
+hdr += b"\0" * (1024 - len(hdr))  # pad to 1024
 with open(args.output, "wb") as f:
     f.write(hdr)
-    f.write(cmd.ljust(args.pagesize - 1632, b"\0")[:args.pagesize - 1632] if args.pagesize > 1632 else cmd)
-    pad(f, args.pagesize)
+    pad_to(f, pages)
     f.write(kernel)
-    pad(f, args.pagesize)
+    pad_to(f, pages)
     if ramdisk:
         f.write(ramdisk)
-        pad(f, args.pagesize)
+        pad_to(f, pages)
     if second:
         f.write(second)
-        pad(f, args.pagesize)
+        pad_to(f, pages)
     if dtb:
         f.write(dtb)
-        pad(f, args.pagesize)
+        pad_to(f, pages)
 print(f"Created {args.output}")
 PYEOF
         chmod +x /usr/local/bin/mkbootimg

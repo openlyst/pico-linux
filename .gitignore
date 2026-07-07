@@ -1,2 +1,10 @@
 /backup
 *.log
+/build/
+/output/
+/rootfs.img
+/boot.img
+*.dtb
+*.Image
+*.gz
+*.uimg

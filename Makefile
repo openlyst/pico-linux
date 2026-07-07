@@ -74,7 +74,7 @@ $(KERNEL_IMG): $(KERNEL_DIR) $(CURDIR)/dts/sdm845-pico-neo2.dts $(CURDIR)/config
 	@echo "==> Configuring kernel..."
 	cd $(KERNEL_DIR) && \
 		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 defconfig && \
-		scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/sdm845.config $(CURDIR)/config/kernel-fragment.config && \
+		cat arch/arm64/configs/sdm845.config $(CURDIR)/config/kernel-fragment.config >> .config && \
 		$(KMAKE) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=arm64 olddefconfig
 	@echo "==> Building kernel..."
 	cd $(KERNEL_DIR) && \

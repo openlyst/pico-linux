@@ -45,7 +45,13 @@ docker run --rm \
     bash -c '
         set -e
         apt-get update -qq 2>/dev/null
-        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 swig xxd 2>/dev/null
+        apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 swig xxd git 2>/dev/null
+
+        # Install mkbootimg
+        git clone --depth 1 https://github.com/nicklasb/mkbootimg.git /tmp/mkbootimg 2>/dev/null
+        pip3 install --break-system-packages /tmp/mkbootimg 2>/dev/null || \
+        (cd /tmp/mkbootimg && python3 setup.py install 2>/dev/null) || \
+        ln -sf /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
 
         echo "==> Configuring U-Boot..."
         make CROSS_COMPILE=aarch64-linux-gnu- pico_neo2_defconfig

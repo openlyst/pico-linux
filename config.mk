@@ -19,7 +19,7 @@ UBOOT_DEFCONFIG := pico_neo2_defconfig
 
 # Kernel (sdm845-mainline)
 KERNEL_REPO  := https://gitlab.com/sdm845-mainline/linux.git
-KERNEL_BRANCH := sdm845/6.12
+KERNEL_BRANCH := sdm845/6.13-release
 KERNEL_DEFCONFIG := sdm845_defconfig
 
 # Device tree

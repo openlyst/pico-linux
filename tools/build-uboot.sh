@@ -124,7 +124,7 @@ PYEOF
         echo "==> Packaging boot.img..."
         gzip -kf u-boot-nodtb.bin
         cat u-boot-nodtb.bin.gz dts/upstream/src/arm64/qcom/sdm845-pico-neo2.dtb > u-boot-nodtb.bin.gz-dtb
-        mkbootimg --kernel u-boot-nodtb.bin.gz-dtb --pagesize 4096 --base 2147483648 -o /output/uboot-boot.img
+        mkbootimg --kernel u-boot-nodtb.bin.gz-dtb --pagesize 4096 --base 0 -o /output/uboot-boot.img
 
         echo "==> Copying outputs..."
         cp u-boot-nodtb.bin /output/

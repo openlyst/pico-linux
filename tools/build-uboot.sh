@@ -47,11 +47,54 @@ docker run --rm \
         apt-get update -qq 2>/dev/null
         apt-get install -y -qq build-essential bc bison flex libncurses-dev libssl-dev python3 swig xxd git 2>/dev/null
 
-        # Install mkbootimg
-        git clone --depth 1 https://github.com/nicklasb/mkbootimg.git /tmp/mkbootimg 2>/dev/null
-        pip3 install --break-system-packages /tmp/mkbootimg 2>/dev/null || \
-        (cd /tmp/mkbootimg && python3 setup.py install 2>/dev/null) || \
-        ln -sf /tmp/mkbootimg/mkbootimg.py /usr/local/bin/mkbootimg
+        # Create a simple mkbootimg wrapper
+        cat > /usr/local/bin/mkbootimg << 'PYEOF'
+#!/usr/bin/env python3
+import struct, sys, os, argparse
+p = argparse.ArgumentParser()
+p.add_argument("--kernel", required=True)
+p.add_argument("--ramdisk", default=None)
+p.add_argument("--second", default=None)
+p.add_argument("--cmdline", default="")
+p.add_argument("--base", type=lambda x: int(x, 0), default=0x80000000)
+p.add_argument("--pagesize", type=int, choices=[2048,4096,8192,16384], default=4096)
+p.add_argument("-o", "--output", required=True)
+p.add_argument("--dtb", default=None)
+p.add_argument("--id", action="store_true")
+args = p.parse_args()
+def align(val, a): return (val + a - 1) & ~(a - 1)
+def pad(f, sz):
+    pos = f.tell()
+    f.write(b"\0" * (align(pos, sz) - pos))
+base = args.base
+ko = base + 0x00008000
+ro = base + 0x01000000
+so = base + 0x00f00000
+to = base + 0x00000100
+hdr = struct.pack("<10I", args.base, args.pagesize, ko - base, ro - base, so - base, to - base, args.pagesize, args.pagesize, args.pagesize, args.pagesize)
+kernel = open(args.kernel, "rb").read()
+ramdisk = open(args.ramdisk, "rb").read() if args.ramdisk else b""
+second = open(args.second, "rb").read() if args.second else b""
+dtb = open(args.dtb, "rb").read() if args.dtb else b""
+cmd = args.cmdline.encode()
+with open(args.output, "wb") as f:
+    f.write(hdr)
+    f.write(cmd.ljust(args.pagesize - 1632, b"\0")[:args.pagesize - 1632] if args.pagesize > 1632 else cmd)
+    pad(f, args.pagesize)
+    f.write(kernel)
+    pad(f, args.pagesize)
+    if ramdisk:
+        f.write(ramdisk)
+        pad(f, args.pagesize)
+    if second:
+        f.write(second)
+        pad(f, args.pagesize)
+    if dtb:
+        f.write(dtb)
+        pad(f, args.pagesize)
+print(f"Created {args.output}")
+PYEOF
+        chmod +x /usr/local/bin/mkbootimg
 
         echo "==> Configuring U-Boot..."
         make CROSS_COMPILE=aarch64-linux-gnu- pico_neo2_defconfig

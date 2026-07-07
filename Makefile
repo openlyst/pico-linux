@@ -120,7 +120,7 @@ $(ROOTFS_IMG):
 
 $(INITRAMFS):
 	@echo "==> Building minimal initramfs..."
-	mkdir -p $(BUILD_DIR)/initramfs/{bin,dev,proc,sys,etc}
+	mkdir -p $(BUILD_DIR)/initramfs/{bin,dev,proc,sys,etc,config}
 	@echo '#!/bin/sh' > $(BUILD_DIR)/initramfs/init
 	@echo 'mount -t proc proc /proc' >> $(BUILD_DIR)/initramfs/init
 	@echo 'mount -t sysfs sysfs /sys' >> $(BUILD_DIR)/initramfs/init
@@ -128,6 +128,19 @@ $(INITRAMFS):
 	@echo 'echo "Pico Neo 2 Linux — initramfs"' >> $(BUILD_DIR)/initramfs/init
 	@echo 'echo "Kernel boot successful!"' >> $(BUILD_DIR)/initramfs/init
 	@echo 'cat /proc/version' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo "Setting up USB serial gadget..."' >> $(BUILD_DIR)/initramfs/init
+	@echo 'mkdir -p /config/usb_gadget/g1' >> $(BUILD_DIR)/initramfs/init
+	@echo 'cd /config/usb_gadget/g1' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo 0x1d6b > idVendor' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo 0x0104 > idProduct' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo "Pico Neo 2" > strings/0x409/manufacturer' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo "Pico Neo 2 Linux" > strings/0x409/product' >> $(BUILD_DIR)/initramfs/init
+	@echo 'mkdir -p configs/c.1/strings/0x409' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo " ACM Serial" > configs/c.1/strings/0x409/configuration' >> $(BUILD_DIR)/initramfs/init
+	@echo 'mkdir -p functions/acm.0' >> $(BUILD_DIR)/initramfs/init
+	@echo 'ln -s functions/acm.0 configs/c.1/' >> $(BUILD_DIR)/initramfs/init
+	@echo 'ls /sys/class/udc/ | head -1 > UDC' >> $(BUILD_DIR)/initramfs/init
+	@echo 'echo "USB gadget set up"' >> $(BUILD_DIR)/initramfs/init
 	@echo 'echo "Available block devices:"' >> $(BUILD_DIR)/initramfs/init
 	@echo 'ls /dev/sd* /dev/dm-* 2>/dev/null' >> $(BUILD_DIR)/initramfs/init
 	@echo 'echo "Mounting UFS root..."' >> $(BUILD_DIR)/initramfs/init
@@ -147,13 +160,22 @@ bootimg: $(KERNEL_IMG) $(DTB_FILE) $(INITRAMFS)
 	@echo "==> Creating boot image with kernel + dtb + initramfs..."
 	@echo "==> Appending DTB to kernel Image (mkbootimg doesn't support --dtb)..."
 	cat $(KERNEL_IMG) $(DTB_FILE) > $(OUTPUT_DIR)/Image-dtb
-	mkbootimg \
-		--kernel $(OUTPUT_DIR)/Image-dtb \
-		--ramdisk $(INITRAMFS) \
-		--pagesize 4096 \
-		--base 2147483648 \
-		--cmdline "console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xa84000 root=/dev/sda10 rw rootwait fw_devlink=permissive init=/sbin/init" \
-		-o $(BOOT_IMG)
+	python3 -c "\
+import struct, os; \
+ps = 4096; \
+kernel = open('$(OUTPUT_DIR)/Image-dtb', 'rb').read(); \
+ramdisk = open('$(INITRAMFS)', 'rb').read(); \
+cmdline = 'console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xa84000 root=/dev/sda10 rw rootwait fw_devlink=permissive init=/sbin/init'; \
+hdr = b'ANDROID!' + struct.pack('<IIIIIIIIII', len(kernel), 0x8000, len(ramdisk), 0x1000000, 0, 0xf00000, 0x100, ps, 0, 0x10040131); \
+hdr += b'\\x00'*16 + cmdline.encode().ljust(512, b'\\x00')[:512] + b'\\x00'*32 + b'\\x00'*1024; \
+f = open('$(BOOT_IMG)', 'wb'); f.write(hdr); \
+pos = f.tell(); f.write(b'\\x00' * (((pos + ps - 1) // ps) * ps - pos)); \
+f.write(kernel); \
+pos = f.tell(); f.write(b'\\x00' * (((pos + ps - 1) // ps) * ps - pos)); \
+f.write(ramdisk); \
+pos = f.tell(); f.write(b'\\x00' * (((pos + ps - 1) // ps) * ps - pos)); \
+f.write(b'\\x00' * (67108864 - f.tell())); f.close(); \
+print(f'Created $(BOOT_IMG) ({os.path.getsize(\"$(BOOT_IMG)\")} bytes)')"
 	rm -f $(OUTPUT_DIR)/Image-dtb
 	@echo "==> Boot image: $(BOOT_IMG)"
 

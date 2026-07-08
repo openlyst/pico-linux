@@ -9,3 +9,4 @@
 *.gz
 *.uimg
 .DS_Store
+backup-images/

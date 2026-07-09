@@ -14,34 +14,105 @@ ABL expects an Android boot image (v0 header, `ANDROID!` magic) with:
 - Base address 0 (kernel_addr=0x8000, ramdisk_addr=0x1000000, tags_addr=0x100)
 - Page size 4096
 - os_version field set (original: 0x10040131)
+- **Fake gzip format**: gzip header + deflate stream + gzip footer + raw DTB appended
+- Kernel must start with branch instruction (0x146e0000) not MZ header
+- ARMd magic at offset 0x38
+- Decompressed kernel size must fit in ABL buffer (~37 MB)
 
 ## A/B Boot Slots
 The Pico Neo 2 has A/B boot slots:
-- `boot` → `/dev/block/sde11` (slot A)
-- `bootbak` → `/dev/block/sde31` (slot B)
-- `dtbo` → `/dev/block/sde19`
-- `dtbobak` → `/dev/block/sde37`
+- `boot` → `/dev/block/sde11` (slot A, sector 49542)
+- `bootbak` → `/dev/block/sde31` (slot B, sector 365926)
+- `dtbo` → `/dev/block/sde19` (sector 344774)
+- `dtbobak` → `/dev/block/sde37` (sector 382630)
+- `vbmeta` → `/dev/block/sde344758` (sector 344758)
 
 Both slots must be flashed to avoid fallback to an old image.
 
-## Boot Image Format
-The original boot image kernel is NOT standard gzip — it has a gzip header
-(`1f 8b 08 00`) but uses raw deflate compression without a valid gzip footer.
-The decompressed kernel is a standard ARM64 Image with `ARMd` magic at offset 0x38.
+## Current Working Approach
 
-Our mainline kernel Image starts with `MZ` (0x4d5a) at offset 0, which is the
-newer ARM64 Image format. ABL on this device rejects mainline kernel Images
-with "Load Error" — the exact reason is still under investigation.
-
-## What Works
-- Original Android kernel (4.9.65) with modified cmdline boots successfully
-- The kernel runs but hangs on the Pico logo (no display/USB drivers loaded)
+### What Works
+- **Original downstream kernel (4.9.65) with modified cmdline** boots successfully
+- Kernel runs but hangs on Pico logo (no display/USB drivers in mainline DTB)
 - This confirms ABL accepts the boot image format and loads the kernel
 
-## What Doesn't Work
-- Mainline Linux kernel Image (gzipped or raw) → "Load Error" from ABL
-- U-Boot binary as kernel replacement → "Load Error" from ABL
-- Both fail despite correct Android boot image header format
+### What Doesn't Work
+- **Mainline Linux kernel (6.13)** → "Load Error" from ABL
+  - Even with correct fake-gzip format, branch instruction, ARMd magic, and size < 37 MB
+  - ABL validates Qualcomm-specific kernel data structures that mainline lacks
+- **DTB swap** (original kernel + mainline DTB) → "Load Error"
+  - ABL validates DTB content/size (original DTB is 2.5 MB vs mainline 99 KB)
+
+### Recommended Path Forward
+1. **Restore original Android** to get ADB access
+2. **Work from downstream 4.9 kernel** — it boots successfully
+3. **Incrementally add mainline drivers** to downstream kernel
+4. **Eventually migrate to mainline kernel** once all drivers are ported
+
+## Quick Recovery Commands
+
+### Restore Original Android (EDL)
+```bash
+# Put device in EDL mode (Vol Up + Vol Down, plug USB)
+./tools/restore-android.sh
+# Device will boot Android in ~50 seconds
+```
+
+### Flash Custom Boot Image (EDL)
+```bash
+# Put device in EDL mode
+./tools/flash-edl.sh boot output/boot-custom.img
+```
+
+### Build Boot Image with Correct Format
+```bash
+# Using original kernel with modified cmdline
+python3 tools/make-bootimg.py --original --cmdline "console=ttyMSM0,115200n8 root=/dev/sda2"
+
+# Using custom kernel + DTB
+python3 tools/make-bootimg.py output/Image output/sdm845-pico-neo2.dtb
+```
+
+## ABL Kernel Validation Summary
+
+ABL performs multiple checks on the kernel image:
+
+1. **Boot image header validation** (`CheckImageHeader`)
+   - Magic: "ANDROID!"
+   - Kernel size, ramdisk size, page size
+
+2. **Gzip magic check** (`is_gzip_package`)
+   - First 3 bytes: 0x1f 0x8b 0x08
+
+3. **Decompression** (`decompress`)
+   - Output buffer size limited by `KernelSizeReserved` UEFI variable (~37 MB)
+   - Fails if decompressed kernel exceeds buffer
+
+4. **Kernel header validation** (`GZipPkgCheck`)
+   - ARMd magic at offset 0x38: 0x644d5241
+   - `image_size` field at offset 16 must fit in allocated buffer
+   - First instruction should be branch (0x146e0000), not MZ (0x4d5a)
+
+5. **Qualcomm-specific validation** (unknown, mainline fails here)
+   - Likely checks for downstream kernel data structures
+   - Original kernel 4.9.65 has Qualcomm-specific signatures mainline lacks
+
+## Boot Image Format Details
+
+### Original Kernel Package Structure
+```
+[gzip header: 10 bytes]
+[deflate stream: ~13 MB]
+[gzip footer: 8 bytes (CRC32 + ISIZE)]
+[raw DTB: ~2.5 MB]
+```
+
+Total: ~16 MB (compressed from ~35 MB kernel + 2.5 MB DTB)
+
+### Why Mainline Fails
+- Mainline kernel 6.13 lacks Qualcomm-specific data ABL validates
+- Downstream kernel 4.9.65 has required Qualcomm signatures
+- Simple format fixes (gzip, branch instruction, size) are insufficient
 
 ## Correct Flash Procedure (Original Kernel with Custom Cmdline)
 1. Take original boot_backup.img as template

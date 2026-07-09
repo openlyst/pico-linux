@@ -15,7 +15,7 @@
 
 include config.mk
 
-.PHONY: all uboot kernel dtb rootfs bootimg flash boot clean distclean help
+.PHONY: all uboot kernel dtb rootfs bootimg flash flash-edl restore-android boot clean distclean help
 
 all: uboot kernel dtb rootfs bootimg
 
@@ -29,7 +29,9 @@ help:
 	@echo "  make dtb      — Build device tree"
 	@echo "  make rootfs   — Create Arch Linux ARM rootfs"
 	@echo "  make bootimg  — Package boot image"
-	@echo "  make flash    — Flash boot image to device"
+	@echo "  make flash    — Flash boot image via ADB (requires Android running)"
+	@echo "  make flash-edl — Flash boot image via EDL (requires EDL mode)"
+	@echo "  make restore-android — Restore original Android via EDL"
 	@echo "  make boot     — Test boot via fastboot"
 	@echo "  make clean    — Clean build outputs"
 	@echo "  make distclean — Remove everything"
@@ -184,7 +186,7 @@ print(f'Created $(BOOT_IMG) ({os.path.getsize(\"$(BOOT_IMG)\")} bytes)')"
 # ============================================================
 
 flash:
-	@echo "==> Flashing boot image to device..."
+	@echo "==> Flashing boot image to device via ADB..."
 ifeq ($(ADB_DEVICE),)
 	adb push $(BOOT_IMG) /data/local/tmp/boot.img
 	adb shell "su -c 'dd if=/data/local/tmp/boot.img of=$(BOOT_PARTITION) bs=4096'"
@@ -195,6 +197,14 @@ else
 	adb -s $(ADB_DEVICE) shell "su -c 'rm /data/local/tmp/boot.img'"
 endif
 	@echo "==> Done. Reboot with: adb reboot"
+
+flash-edl:
+	@echo "==> Flashing boot image via EDL (qdl)..."
+	$(CURDIR)/tools/flash-edl.sh boot $(BOOT_IMG)
+
+restore-android:
+	@echo "==> Restoring original Android via EDL..."
+	$(CURDIR)/tools/flash-edl.sh restore
 
 boot:
 	@echo "==> Test booting via fastboot..."

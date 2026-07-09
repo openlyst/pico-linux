@@ -1,93 +1,124 @@
-# pico-linux
+# Pico Neo 2 Linux Port
 
+Porting mainline Linux to the Pico Neo 2 VR headset (Qualcomm SDM845).
 
+## Current Status
 
-## Getting started
+**Kernel boots successfully** but most hardware drivers are missing. The device boots into a kernel with console output but no display, input, or USB support.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### What Works
+- Original downstream kernel (4.9.65) boots successfully
+- Kernel loads and initializes
+- Console output available via serial
+- ABL accepts boot image format
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### What Doesn't Work
+- Mainline kernel (6.13) → "Load Error" from ABL (Qualcomm-specific validation)
+- Display driver (no framebuffer/DRM)
+- Input drivers (no touchscreen, buttons, IMU)
+- USB gadget (no ADB/serial over USB)
+- Audio (no codec/DSP support)
+- WiFi/BT (WCN3990 not supported in mainline)
+- Camera (ISP not supported)
 
-## Add your files
+## Hardware
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+- **SoC:** Qualcomm SDM845 (Snapdragon 845)
+- **Display:** Dual DSI Sharp 1080p 120Hz panels (540x1920 per eye)
+- **GPU:** Adreno 630
+- **Storage:** UFS 2.1 (119GB)
+- **Sensors:** Bosch IMU (BMA2x2, BMG160, BMM150), STK3X1X proximity
+- **Connectivity:** WCN3990 WiFi/BT, Nordic MCU (tracking)
+- **Audio:** WCD934X codec + Q6 DSP
+
+## Boot Chain
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/HttpAnimations/pico-linux.git
-git branch -M main
-git push -uf origin main
+XBL → ABL (Android Bootloader) → Kernel
 ```
 
-## Integrate with your tools
+ABL requires specific kernel format:
+- Android boot image v0 with "ANDROID!" magic
+- Fake-gzip compression (gzip header + deflate + footer + raw DTB)
+- Kernel must start with branch instruction (0x146e0000)
+- ARMd magic at offset 0x38
+- Decompressed size < 37 MB (ABL buffer limit)
 
-* [Set up project integrations](https://gitlab.com/HttpAnimations/pico-linux/-/settings/integrations)
+## Quick Start
 
-## Collaborate with your team
+### Restore Original Android
+```bash
+# Put device in EDL mode (Vol Up + Vol Down, plug USB)
+./tools/restore-android.sh
+```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Build Boot Image
+```bash
+# Using original kernel with modified cmdline
+python3 tools/make-bootimg.py --original --cmdline "console=ttyMSM0,115200n8"
 
-## Test and Deploy
+# Using custom kernel + DTB
+python3 tools/make-bootimg.py output/Image output/sdm845-pico-neo2.dtb
+```
 
-Use the built-in continuous integration in GitLab.
+### Flash via EDL
+```bash
+./tools/flash-edl.sh boot output/boot-custom.img
+```
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+## Development Path
 
-***
+Mainline kernel (6.13) cannot boot directly due to ABL's Qualcomm-specific validation. The recommended approach:
 
-# Editing this README
+1. **Work from downstream 4.9 kernel** — it boots successfully
+2. **Incrementally add mainline drivers** to downstream kernel
+3. **Eventually migrate to mainline kernel** once all drivers are ported
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Documentation
 
-## Suggestions for a good README
+- [Recovery Notes](docs/recovery-notes.md) — Boot chain, ABL requirements, recovery procedures
+- [Hardware Overview](docs/hardware-overview.md) — Detailed hardware description
+- [Device Tree Porting](docs/device-tree-porting.md) — DTB development guide
+- [Display Pipeline](docs/display-pipeline.md) — Display driver requirements
+- [Connectivity Peripherals](docs/connectivity-peripherals.md) — WiFi/BT/USB
+- [Sensor Tracking](docs/sensor-tracking.md) — IMU and Nordic MCU
+- [Custom Driver Summary](docs/custom-driver-summary.md) — Required drivers list
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Building
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+# Build mainline kernel (for reference/driver extraction)
+make kernel
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+# Build reduced kernel (for testing ABL size limits)
+make kernel-minimal
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Build boot image
+make bootimg
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Flash via ADB (requires Android running)
+make flash
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+# Flash via EDL (requires EDL mode)
+make flash-edl
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## Recovery
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+If the device gets stuck in fastboot with "Load Error":
+1. Put device in EDL mode (Vol Up + Vol Down, plug USB)
+2. Run `./tools/restore-android.sh`
+3. Device will boot Android in ~50 seconds
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+This is a work-in-progress port. Driver contributions welcome, especially:
+- Display (DRM/KMS for dual DSI panels)
+- USB gadget (for ADB/serial)
+- Input (touchscreen, buttons)
+- Sensors (IMU, proximity)
+- Audio (WCD934X codec)
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+See [LICENSE](LICENSE) file.

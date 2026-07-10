@@ -1,0 +1,6 @@
+# Backup checksums — verify with: md5 -r backups/*.img
+e01bf8e1eeb3d740ef3f9a144b83b218  backups/boot_backup.img
+e01bf8e1eeb3d740ef3f9a144b83b218  backups/bootbak_backup.img
+c985151483d527f0904ab32da2f083f3  backups/vbmeta_backup.img
+c1fd8e9dee023a99555420a0163e2822  backups/dtbo_backup.img
+95e7cdb14222fbab16a96bb519e717db  backups/abl_backup.img
